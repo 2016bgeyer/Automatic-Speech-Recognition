@@ -1,5 +1,7 @@
 import re
 import numpy as np
+import math
+NEG_INF = -float("inf")
 
 class Table:
     '''
@@ -54,7 +56,6 @@ def get_most_probable_beams(Prob_blank, Prob_not_blank, timestep, beamWidth, bet
             prob = Prob_blank.get(timestep, prefix) + Prob_not_blank.get(timestep, prefix)
             # word insertion factor based on the LM to prevent bias towards shorter length predictions having higher probability
             # beta is 0 for lm=None so the get_num_words function has no weight on the probability
-            # TODO as beta = 0 actually true for LM=None?
             prob_map[prefix] = prob * get_num_words(prefix) ** beta
 
     if timestep in Prob_not_blank.prob_table:
@@ -65,15 +66,21 @@ def get_most_probable_beams(Prob_blank, Prob_not_blank, timestep, beamWidth, bet
                 prob = Prob_blank.get(timestep, prefix) + Prob_not_blank.get(timestep, prefix)
                 # word insertion factor based on the LM to prevent bias towards shorter length predictions having higher probability
                 # beta is 0 for lm=None so the get_num_words function has no weight on the probability
-                # TODO as beta = 0 actually true for LM=None?
                 prob_map[prefix] = prob * get_num_words(prefix) ** beta
     prefix_list = sorted(prefix_list, key=lambda l: prob_map[l], reverse=True)
     return prefix_list[:beamWidth]
 
 # def best_beam_search(network_matrix_output, alphabet, space_token, end_token, blank_token):
-    # "Greedy" Search
-    # Uses argmax of the probabilities at each time point.
-    # Can either leave or remove all duplicate char sets so that AAAPPPLLLLEEE can become either apple or aple
+
+# from ASR / DeepSpeech library
+def logsumexp(*args):
+	neg_inf = -float("inf")
+	if all(a == neg_inf for a in args):
+		return neg_inf
+	a_max = max(args)
+	lsp = math.log(sum(math.exp(a - a_max)
+					   for a in args))
+	return a_max + lsp
 
 def prefix_beam_search(network_matrix_output, alphabet, space_token, end_token, blank_token, lm, beamWidth=3, alpha=0.30, beta=5, prune=0.001):
     '''
@@ -110,7 +117,6 @@ def prefix_beam_search(network_matrix_output, alphabet, space_token, end_token, 
 
     if (lm is None):
         alpha = 0  # make weight of language model probability 0
-        # TODO as beta = 0 actually true for LM=None?
         beta = 0  # make weight of num words probability 0
         lm = lambda prefix : 1 # just return 1
 
