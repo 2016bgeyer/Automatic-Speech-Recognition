@@ -54,18 +54,17 @@ def get_most_probable_beams(Prob_blank, Prob_not_blank, timestep, beamWidth, bet
             prob = Prob_blank.get(timestep, prefix) + Prob_not_blank.get(timestep, prefix)
             # word insertion factor based on the LM to prevent bias towards shorter length predictions having higher probability
             # beta is 0 for lm=None so the get_num_words function has no weight on the probability
-            # TODO as beta = 0 actually true for LM=None?
+            # TODO is beta = 0 actually true for no language model? longer word sequences "shouldn't" be penalized without it
             prob_map[prefix] = prob * get_num_words(prefix) ** beta
 
     if timestep in Prob_not_blank.prob_table:
         for prefix in list(Prob_not_blank.prob_table[timestep].keys()):
             if prefix not in prefix_list:        # don't recompute probability of an existing beam/prefix from above
-                print('DEBUG**** Does this ever get run? I think the previous prob_blank table has every prefix that would be in here')
                 prefix_list.append(prefix)
                 prob = Prob_blank.get(timestep, prefix) + Prob_not_blank.get(timestep, prefix)
                 # word insertion factor based on the LM to prevent bias towards shorter length predictions having higher probability
                 # beta is 0 for lm=None so the get_num_words function has no weight on the probability
-                # TODO as beta = 0 actually true for LM=None?
+                # TODO is beta = 0 actually true for no language model? longer word sequences "shouldn't" be penalized without it
                 prob_map[prefix] = prob * get_num_words(prefix) ** beta
     prefix_list = sorted(prefix_list, key=lambda l: prob_map[l], reverse=True)
     return prefix_list[:beamWidth]
@@ -92,14 +91,18 @@ def prefix_beam_search(network_matrix_output, alphabet, space_token, end_token, 
     
     -return: best beam string
     '''
+    # TODO: figure out why this is occurring or if this is normal in other algorithms
+    # pad beginning with zeros so that the first character isn't cut off with a 0 prior probability
     zero_pad = np.zeros((network_matrix_output.shape[0] + 1, network_matrix_output.shape[1]))
     zero_pad[1:, :] = network_matrix_output
     network_matrix_output = zero_pad
+
+    
     total_timesteps = network_matrix_output.shape[0]
-    print('total_timesteps: ', total_timesteps)
-    num_class_predictions = network_matrix_output.shape[1]
-    print('num_class_predictions: ', num_class_predictions)
-    print('len(alphabet): ', len(alphabet))
+    # num_class_predictions = network_matrix_output.shape[1]
+    # print('total_timesteps: ', total_timesteps)
+    # print('num_class_predictions: ', num_class_predictions)
+    # print('len(alphabet): ', len(alphabet))
 
     # Initialization
     null_token = ''
@@ -110,7 +113,7 @@ def prefix_beam_search(network_matrix_output, alphabet, space_token, end_token, 
 
     if (lm is None):
         alpha = 0  # make weight of language model probability 0
-        # TODO as beta = 0 actually true for LM=None?
+        # TODO is beta = 0 actually true for no language model? longer word sequences "shouldn't" be penalized without it
         beta = 0  # make weight of num words probability 0
         lm = lambda prefix : 1 # just return 1
 
@@ -131,37 +134,36 @@ def prefix_beam_search(network_matrix_output, alphabet, space_token, end_token, 
                 new_char_confidence = network_matrix_output[timestep][character_index]    # NN confidence of the new character
                 blank_char_confidence = network_matrix_output[timestep][-1]
 
-                # Iterations : Case A
+                # if we are not sure what this timestep sounds like yet and we use a blank
                 if character == blank_token:
+                    # current += (our confidence * prob_prev_blank) + prob_prev_not_blank
                     value = Prob_blank.get(timestep, prefix) + (new_char_confidence * prob_prev_blank) + prob_prev_not_blank
                     Prob_blank.set(timestep, prefix, value)
-                    continue    # skip everything else
 
-
-                prefix_extended = prefix + character
-                # Iterations : Case C
-                if prefix and prefix[-1] == character:  # new char is the same as the last char and not empty string
-                    value = Prob_not_blank.get(timestep, prefix_extended) + (new_char_confidence * prob_prev_blank)
-                    Prob_not_blank.set(timestep, prefix_extended, value)
-                    value = Prob_not_blank.get(timestep, prefix) + (new_char_confidence * prob_prev_not_blank)
-                    Prob_not_blank.set(timestep, prefix, value)
-
-                # Iterations : Case B
-                elif prefix.strip(space_token) and character in (space_token, end_token):  # end of a word (need to check language model)
-                    lm_prob = lm(prefix_extended.strip(space_token + end_token)) ** alpha   # check probability of that word based on the trained language model: probably not a space/end token if it is a misspelled word
-                    # might not need to strip the space token for Fairseq LM model because it counted _ has start word token
-                    # might need to take softmax or log_softmax of the lm() function output depending on lm model; I think it has log_prob stored
-                    value = Prob_not_blank.get(timestep, prefix_extended) + ((new_char_confidence * lm_prob) * (prob_prev_blank + prob_prev_not_blank))
-                    Prob_not_blank.set(timestep, prefix_extended, value)
                 else:
-                    value = Prob_not_blank.get(timestep, prefix_extended) + (new_char_confidence * (prob_prev_blank + prob_prev_not_blank))
-                    Prob_not_blank.set(timestep, prefix_extended, value)
+                    prefix_extended = prefix + character
+                    if prefix and prefix[-1] == character:  # new char is the same as the last char and not empty string
+                        value = Prob_not_blank.get(timestep, prefix_extended) + (new_char_confidence * prob_prev_blank)
+                        Prob_not_blank.set(timestep, prefix_extended, value)
+                        value = Prob_not_blank.get(timestep, prefix) + (new_char_confidence * prob_prev_not_blank)
+                        Prob_not_blank.set(timestep, prefix, value)
 
-                if prefix_extended not in prefix_list:  # update new beam probabilities
-                    value = Prob_blank.get(timestep, prefix_extended) + (blank_char_confidence * (Prob_blank.get(timestep - 1, prefix_extended) + Prob_not_blank.get(timestep - 1, prefix_extended)))
-                    Prob_blank.set(timestep, prefix_extended, value)        # update new beam probability for ending right now (blank)
-                    value = Prob_not_blank.get(timestep, prefix_extended) + (new_char_confidence * Prob_not_blank.get(timestep - 1, prefix_extended))
-                    Prob_not_blank.set(timestep, prefix_extended, value)    # update new beam probability for not ending (not blank)
+                    elif prefix.replace(space_token, '') and character in (space_token, end_token):  # end of a word (need to check language model)
+                        # check probability of that word based on the trained language model: probably not a space/end token if it is a misspelled word
+                        lm_prob = lm(prefix_extended.strip(space_token + end_token)) ** alpha
+                        # might not need to strip the space token for Fairseq LM model because it counted _ as start word token
+                        # might need to take softmax or log_softmax of the lm() function output depending on lm model; I think it has log_prob stored for fairseq
+                        value = Prob_not_blank.get(timestep, prefix_extended) + ((new_char_confidence * lm_prob) * (prob_prev_blank + prob_prev_not_blank))
+                        Prob_not_blank.set(timestep, prefix_extended, value)
+                    else:   # if not end of a word, just add the new probability conditioned on the last probability again
+                        value = Prob_not_blank.get(timestep, prefix_extended) + (new_char_confidence * (prob_prev_blank + prob_prev_not_blank))
+                        Prob_not_blank.set(timestep, prefix_extended, value)
+
+                    if prefix_extended not in prefix_list:  # update new beam probabilities
+                        value = Prob_blank.get(timestep, prefix_extended) + (blank_char_confidence * (Prob_blank.get(timestep - 1, prefix_extended) + Prob_not_blank.get(timestep - 1, prefix_extended)))
+                        Prob_blank.set(timestep, prefix_extended, value)        # update new beam probability for ending right now (blank)
+                        value = Prob_not_blank.get(timestep, prefix_extended) + (new_char_confidence * Prob_not_blank.get(timestep - 1, prefix_extended))
+                        Prob_not_blank.set(timestep, prefix_extended, value)    # update new beam probability for not ending (not blank)
 
         prefix_list = get_most_probable_beams(Prob_blank, Prob_not_blank, timestep, beamWidth, beta)  # prune all beams to only the beamWidth best beams
 

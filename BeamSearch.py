@@ -2,7 +2,9 @@ from __future__ import division
 from __future__ import print_function
 import numpy as np
 
-
+######### THIS CODE IS NOT MINE ###############
+# this code is to compare the output of my algorithm's use of a language model against
+# from https://github.com/githubharald/CTCDecoder/blob/master/src/BeamSearch.py
 class BeamEntry:
 	"information about one single beam at specific time-step"
 	def __init__(self):
