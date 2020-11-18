@@ -32,10 +32,19 @@ Then you can run any of the following files from the command line inside the ana
 * Conda should install all of these for you if you also have pip installed.
 
 `ctc_output.npy`:
-* Saved neural network matrix output resulting in running `train_nn_model.py` with epochs = 75 for your convenience.
+* The saved neural network matrix output resulting in running `train_nn_model.py` with epochs = 75 for your convenience.
+* Once you run `train_nn_model.py`, this file will be overwritten.
+
+`ctc_output_50_epochs.npy`:
+* Saved neural network matrix output resulting in running `train_nn_model.py` with epochs = 50.
+* In this case, the network wasn't fully trained and every decoding algorithm had an error around 20%.
+
+`ctc_output_75_epochs.npy`:
+* Saved neural network matrix output resulting in running `train_nn_model.py` with epochs = 75 as a backup in case you run `train_nn_model.py` with a different epoch number.
+* In this case, the network was more trained and each decoding algorithm except greedy was able to achieve a very low error rate (~1%).
 
 `ctc_output_200_epochs.npy`:
-* Saved neural network matrix output resulting in running `train_nn_model.py` with epochs = 200 for your convenience.
+* Saved neural network matrix output resulting in running `train_nn_model.py` with epochs = 200.
 * In this case, the network has overfitted and allows the decoders except Greedy to all get 0 error since each character has very high confidence.
 
 `BeamSearch.py`:

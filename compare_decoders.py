@@ -172,6 +172,7 @@ def compare_decoders(space_token=' ', end_token='>', blank_token='?'):
 		for timestep in mat_tc_log_softmax:
 			greedy_label_string += alphabet[tf.math.argmax(timestep)]
 		
+		greedy_label_string = greedy_label_string.replace(blank_token, '')	# remove all blank tokens
 		greedy_labels = list(greedy_label_string)
 		print('Greedy Prediction:', greedy_label_string)
 
