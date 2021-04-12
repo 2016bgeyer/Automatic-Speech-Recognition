@@ -17,6 +17,7 @@ class Model(tf.keras.Model):
         self.optimizer = optimizer
 
     def call(self, x):
+        print(x.shape)
         x = self.conv_layer(x)
         x = self.blstm_layer(x)
         x = self.dense_layer(x)
@@ -116,7 +117,7 @@ def train_network(X, y, epochs, batch_size, test_X, alphabet, save_model_output)
 
     # save model output to npy and then load that in compare_decoders
     if save_model_output:
-        np.save('ctc_output.npy', ctc_output)
+        np.save('ctc_output_50_epochs.npy', ctc_output)
         # np.save('ctc_output_softmax.npy', ctc_output_softmax)
         # np.save('ctc_output_log_softmax.npy', ctc_output_log_softmax)
         
@@ -145,9 +146,9 @@ def main():
 
 
     X = preprocess_audio(sample_file_name)  # process audio into ndarray
+    print(X.shape)
     X = tf.expand_dims(X, axis=0)           # converting input into a batch of size 1; when doing a multi-sample training set, the expand_dims isn't needed
     print('X: ', tf.keras.backend.eval(X))
-    
 
     y = [alphabet.index(char) for char in transcript] # convert to character indecies in alphabet
 
@@ -157,7 +158,7 @@ def main():
 
     test_X = X      # test sample to have the network predict on to save and decode. Using the same file is fine since we are evaluating decoders not the network
 
-    epochs = 75 # after about 75, it has completely overfit to the data for 1 file
+    epochs = 50 # after about 75, it has completely overfit to the data for 1 file
     batch_size = 1 # just use the entire audio file so that the bidirectional LSTM can have context for prediction
     
     

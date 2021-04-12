@@ -3,37 +3,38 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import tensorflow as tf
 import numpy as np
 import pandas as pd
-import math
 import csv
 import matplotlib.pyplot as plt
 from BeamSearch import ctcBeamSearch
 from prefix_beam_search import prefix_beam_search
+from class_prefix import PrefixDecoder
 from string import ascii_lowercase
+from language_model import KenLMLanguageModel
 
 import editdistance
 	
 def load_df_from_tsv(path: str):
 	return pd.read_csv(
-        path,
-        sep="\t",
-        header=0,
-        encoding="utf-8",
-        escapechar="\\",
-        quoting=csv.QUOTE_NONE,
-        na_filter=False,
-    )
+		path,
+		sep="\t",
+		header=0,
+		encoding="utf-8",
+		escapechar="\\",
+		quoting=csv.QUOTE_NONE,
+		na_filter=False,
+	)
 
 
 def save_df_to_tsv(dataframe, path):
-    dataframe.to_csv(
-        path,
-        sep="\t",
-        header=True,
-        index=False,
-        encoding="utf-8",
-        escapechar="\\",
-        quoting=csv.QUOTE_NONE,
-    )
+	dataframe.to_csv(
+		path,
+		sep="\t",
+		header=True,
+		index=False,
+		encoding="utf-8",
+		escapechar="\\",
+		quoting=csv.QUOTE_NONE,
+	)
 
 def softmax(matrix):
 	'transform input probabilities into a probabil'
@@ -58,6 +59,11 @@ def calc_cer(ground_truth, pred_sequence):
 
 def compare_decoders(space_token=' ', end_token='>', blank_token='?'):
 	filename = 'ctc_output.npy'
+	filename = 'ctc_output_75_epochs.npy'
+	filename = 'ctc_output_60_epochs.npy'
+	filename = 'ctc_output_50_epochs.npy'
+	# filename = 'ctc_output_40_epochs.npy'
+	# filename = 'ctc_output_30_epochs.npy'
 
 	mat_tcb = np.load(filename)	# raw output t * c * b matrix from the network
 	# my nn architecture worked on a t * c * b matrix, so I need to switch the dimensions to t * b * c for tensorflow
@@ -104,6 +110,18 @@ def compare_decoders(space_token=' ', end_token='>', blank_token='?'):
 		
 		my_cer = calc_cer(ground_truth, my_labels)
 		print("My CER: {:.3f}".format(my_cer))
+
+
+		# CLASS PREFIX:
+		decoder = PrefixDecoder()
+		lm = KenLMLanguageModel('../../data/3-gram.pruned.3e-7.arpa')
+		decoded = decoder(mat_sm_tc, alphabet, space_token, end_token, blank_token, lm=lm, beamWidth=beam_width)
+		my_labels = list(decoded)
+		print('My Prediction:', decoded)
+		
+		my_cer = calc_cer(ground_truth, my_labels)
+		print("My CER: {:.3f}".format(my_cer))
+
 
 	if run_tensorflow:
 		# Tensorflow Beam Search
@@ -153,7 +171,7 @@ def compare_decoders(space_token=' ', end_token='>', blank_token='?'):
 		# Extra Beam Search From Online for use with an LM to compare against mine in the future
 		print('\nRunning Extra\'s  Beam Search')
 
-		extra_label_string = ctcBeamSearch(mat_sm_tc, classes=alphabet[:-1], beamWidth=beam_width, lm=lm)
+		extra_label_string = ctcBeamSearch(mat_sm_tc, classes=alphabet[:-1], beamWidth=beam_width, lm=None)
 		extra_labels = list(extra_label_string)
 		print('Extra Beam Search Prediction:', extra_label_string)
 

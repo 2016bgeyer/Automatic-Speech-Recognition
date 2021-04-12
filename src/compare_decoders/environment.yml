@@ -3,6 +3,7 @@ dependencies:
   - python=3.7.0
   - tensorflow=2.1.0
   - pandas=0.25.3
+  - pip
   pip:
     - librosa
     - matplotlib
